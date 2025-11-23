@@ -57,17 +57,35 @@ IMAGE_GENERATION_PROVIDER=replicate
 
 ## MCP Client Configuration
 
-### Claude Desktop / Amp / Others
+### Claude Desktop / Amp
 
-Configure as an MCP "command" or "stdio" server.
+Add the following to your configuration file (e.g., `claude_desktop_config.json`):
 
-#### Option 1: Using npx (Recommended)
-
-```bash
-npx image-generation-mcp-server
+```json
+{
+  "mcpServers": {
+    "image-generation": {
+      "command": "npx",
+      "args": ["-y", "image-generation-mcp-server"],
+      "env": {
+        "GEMINI_API_KEY": "your-gemini-api-key",
+        "REPLICATE_API_TOKEN": "optional-replicate-token",
+        "HUGGING_FACE_TOKEN": "optional-hf-token"
+      }
+    }
+  }
+}
 ```
 
-#### Option 2: Using Node directly
+### Manual Execution (Testing)
+
+To run the server manually:
+
+```bash
+npx -y image-generation-mcp-server
+```
+
+### Option 2: Using Node directly
 
 ```bash
 node path/to/mcp-server.js

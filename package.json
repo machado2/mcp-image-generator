@@ -1,6 +1,6 @@
 {
   "name": "image-generation-mcp-server",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "MCP server for image generation and editing using multiple providers (Gemini, Replicate, Hugging Face)",
   "type": "module",
   "main": "mcp-server.js",
