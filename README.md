@@ -1,84 +1,84 @@
 # Image Generation MCP Server
 
-Servidor MCP (Model Context Protocol) para geração e edição de imagens utilizando múltiplos provedores (Gemini, Replicate, Hugging Face).
+An MCP (Model Context Protocol) server for image generation and editing using multiple providers (Gemini, Replicate, Hugging Face).
 
-## Instalação
+## Installation
 
 ```bash
 npm install
 ```
 
-## Configuração
+## Configuration
 
-Você pode configurar o provedor através de variáveis de ambiente. O servidor selecionará automaticamente o provedor com base na configuração ou disponibilidade das chaves.
+You can configure the provider through environment variables. The server will automatically select the provider based on configuration or API key availability.
 
-### Provedores Suportados
+### Supported Providers
 
-#### 1. Google Gemini (Padrão)
-- **Modelo**: `gemini-3-pro-image-preview`
-- **Variável**: `GEMINI_API_KEY`
-- **Custo**: Gratuito (atualmente em preview)
+#### 1. Google Gemini (Default)
+- **Model**: `gemini-3-pro-image-preview`
+- **Environment Variable**: `GEMINI_API_KEY`
+- **Cost**: Free (currently in preview)
 
 #### 2. Replicate
-- **Geração**: `sdxl-lightning` (Rápido e baixo custo)
-- **Edição**: `instruct-pix2pix`
-- **Variável**: `REPLICATE_API_TOKEN`
-- **Configuração Explícita**: `IMAGE_GENERATION_PROVIDER=replicate`
+- **Generation**: `sdxl-lightning` (Fast and low cost)
+- **Editing**: `instruct-pix2pix`
+- **Environment Variable**: `REPLICATE_API_TOKEN`
+- **Explicit Configuration**: `IMAGE_GENERATION_PROVIDER=replicate`
 
 #### 3. Hugging Face
-- **Geração**: `stable-diffusion-xl-base-1.0`
-- **Edição**: *Não suportado na versão atual*
-- **Variável**: `HUGGING_FACE_TOKEN`
-- **Configuração Explícita**: `IMAGE_GENERATION_PROVIDER=huggingface`
+- **Generation**: `stable-diffusion-xl-base-1.0`
+- **Editing**: *Not supported in current version*
+- **Environment Variable**: `HUGGING_FACE_TOKEN`
+- **Explicit Configuration**: `IMAGE_GENERATION_PROVIDER=huggingface`
 
-### Exemplo de `.env`
+### `.env` Example
 
 ```bash
 # Gemini
-GEMINI_API_KEY=sua-chave-api-gemini
+GEMINI_API_KEY=your-gemini-api-key
 
 # Replicate
-REPLICATE_API_TOKEN=sua-chave-api-replicate
+REPLICATE_API_TOKEN=your-replicate-api-token
 
 # Hugging Face
-HUGGING_FACE_TOKEN=sua-chave-api-huggingface
+HUGGING_FACE_TOKEN=your-hugging-face-token
 
-# Escolha forçada do provedor (opcional)
+# Force provider selection (optional)
 IMAGE_GENERATION_PROVIDER=replicate
 ```
 
-## Configuração em Clientes MCP
+## MCP Client Configuration
 
-### Claude Desktop / Amp / Outros
+### Claude Desktop / Amp / Others
 
-Configure como servidor MCP "command" ou "stdio".
+Configure as an MCP "command" or "stdio" server.
 
-**Comando**:
+**Command**:
 ```bash
 node path/to/mcp-server.js
 ```
 
 **Environment Variables**:
-Certifique-se de passar as variáveis de ambiente necessárias (`GEMINI_API_KEY`, etc.) na configuração do seu cliente.
+Make sure to pass the required environment variables (`GEMINI_API_KEY`, etc.) in your client configuration.
 
-## Ferramentas Disponíveis
+## Available Tools
 
 ### `generate_image_from_text`
-Gera uma nova imagem a partir de uma descrição textual.
+Generates a new image from a text description.
 
-**Parâmetros:**
-- `prompt`: Descrição detalhada da imagem.
-- `output_path` (opcional): Caminho para salvar o arquivo.
+**Parameters:**
+- `prompt`: Detailed description of the image.
+- `output_path` (optional): Path where the generated image will be saved.
 
 ### `edit_image`
-Edita uma imagem existente com base em instruções.
+Edits an existing image based on instructions.
 
-**Parâmetros:**
-- `image_path`: Caminho para a imagem original.
-- `prompt`: Instruções de edição.
-- `output_path` (opcional): Caminho para salvar o resultado.
+**Parameters:**
+- `image_path`: Path to the original image.
+- `prompt`: Editing instructions.
+- `output_path` (optional): Path where the result will be saved.
 
-## Requisitos
+## Requirements
 
 - Node.js 18+
-- Chave de API de pelo menos um dos provedores suportados.
+- API key from at least one of the supported providers.
