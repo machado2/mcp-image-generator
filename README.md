@@ -1,6 +1,6 @@
 # Image Generation MCP Server
 
-Servidor MCP (Model Context Protocol) para geração de imagens coloridas e aprimoradas usando a API Gemini.
+Servidor MCP (Model Context Protocol) para geração e edição de imagens utilizando múltiplos provedores (Gemini, Replicate, Hugging Face).
 
 ## Instalação
 
@@ -10,101 +10,75 @@ npm install
 
 ## Configuração
 
-Defina a variável de ambiente `GEMINI_API_KEY`:
+Você pode configurar o provedor através de variáveis de ambiente. O servidor selecionará automaticamente o provedor com base na configuração ou disponibilidade das chaves.
+
+### Provedores Suportados
+
+#### 1. Google Gemini (Padrão)
+- **Modelo**: `gemini-3-pro-image-preview`
+- **Variável**: `GEMINI_API_KEY`
+- **Custo**: Gratuito (atualmente em preview)
+
+#### 2. Replicate
+- **Geração**: `sdxl-lightning` (Rápido e baixo custo)
+- **Edição**: `instruct-pix2pix`
+- **Variável**: `REPLICATE_API_TOKEN`
+- **Configuração Explícita**: `IMAGE_GENERATION_PROVIDER=replicate`
+
+#### 3. Hugging Face
+- **Geração**: `stable-diffusion-xl-base-1.0`
+- **Edição**: *Não suportado na versão atual*
+- **Variável**: `HUGGING_FACE_TOKEN`
+- **Configuração Explícita**: `IMAGE_GENERATION_PROVIDER=huggingface`
+
+### Exemplo de `.env`
 
 ```bash
-export GEMINI_API_KEY=sua-chave-api-gemini
+# Gemini
+GEMINI_API_KEY=sua-chave-api-gemini
+
+# Replicate
+REPLICATE_API_TOKEN=sua-chave-api-replicate
+
+# Hugging Face
+HUGGING_FACE_TOKEN=sua-chave-api-huggingface
+
+# Escolha forçada do provedor (opcional)
+IMAGE_GENERATION_PROVIDER=replicate
 ```
-
-## Uso Direto (Teste)
-
-```bash
-node server.js caminho/para/imagem.png
-```
-
-Isso gerará um arquivo `output.png` com a imagem aprimorada.
 
 ## Configuração em Clientes MCP
 
-### Claude Desktop (macOS/Linux)
+### Claude Desktop / Amp / Outros
 
-Adicione ao arquivo `~/.config/Claude/claude_desktop_config.json`:
+Configure como servidor MCP "command" ou "stdio".
 
-```json
-{
-  "mcpServers": {
-    "image-generation": {
-      "command": "node",
-      "args": ["/caminho/para/mcp-server.js"],
-      "env": {
-        "GEMINI_API_KEY": "sua-chave-api-gemini"
-      }
-    }
-  }
-}
+**Comando**:
+```bash
+node path/to/mcp-server.js
 ```
 
-### Claude Desktop (Windows)
-
-Adicione ao arquivo `%APPDATA%\Claude\claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "image-generation": {
-      "command": "node",
-      "args": ["D:\\caminho\\para\\mcp-server.js"],
-      "env": {
-        "GEMINI_API_KEY": "sua-chave-api-gemini"
-      }
-    }
-  }
-}
-```
-
-### Kilocode / Amp
-
-Configure como servidor MCP customizado com os seguintes parâmetros:
-
-- **Command**: `node`
-- **Args**: `["/caminho/para/mcp-server.js"]`
-- **Environment**: `GEMINI_API_KEY=sua-chave-api`
+**Environment Variables**:
+Certifique-se de passar as variáveis de ambiente necessárias (`GEMINI_API_KEY`, etc.) na configuração do seu cliente.
 
 ## Ferramentas Disponíveis
 
-### `generate_colored_image`
-
-Gera uma versão colorida e aprimorada de uma imagem (quadrinho, esboço, etc).
+### `generate_image_from_text`
+Gera uma nova imagem a partir de uma descrição textual.
 
 **Parâmetros:**
-- `image_path` (obrigatório): Caminho para o arquivo de imagem (PNG, JPG, GIF, WebP)
-- `output_path` (opcional): Caminho onde salvar a imagem gerada (padrão: `output.png`)
+- `prompt`: Descrição detalhada da imagem.
+- `output_path` (opcional): Caminho para salvar o arquivo.
 
-**Resposta:**
-```json
-{
-  "success": true,
-  "output_path": "/caminho/para/output.png",
-  "message": "Image generated and saved successfully"
-}
-```
+### `edit_image`
+Edita uma imagem existente com base em instruções.
 
-## Arquivos
-
-- `server.js` - Servidor simples para teste direto
-- `mcp-server.js` - Servidor MCP completo para integração com clientes
-- `gemini.rs` - Implementação de referência em Rust
-- `package.json` - Dependências do Node.js
+**Parâmetros:**
+- `image_path`: Caminho para a imagem original.
+- `prompt`: Instruções de edição.
+- `output_path` (opcional): Caminho para salvar o resultado.
 
 ## Requisitos
 
 - Node.js 18+
-- Chave de API Gemini válida
-- Acesso à internet para chamar a API Gemini
-
-## Notas
-
-- O modelo usado é `gemini-3-pro-image-preview` que suporta geração de imagens
-- Imagens são processadas em Base64
-- Suporta os seguintes formatos: PNG, JPG, JPEG, GIF, WebP
-- Timeout configurado para 60 segundos
+- Chave de API de pelo menos um dos provedores suportados.
