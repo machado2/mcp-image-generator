@@ -1,9 +1,24 @@
 {
   "name": "image-generation-mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for image generation using Gemini API",
+  "description": "MCP server for image generation and editing using multiple providers (Gemini, Replicate, Hugging Face)",
   "type": "module",
-  "main": "server.js",
+  "main": "mcp-server.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/machado2/mcp-image-generator.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "image-generation",
+    "image-editing",
+    "gemini",
+    "replicate",
+    "hugging-face"
+  ],
+  "author": "machado2",
+  "license": "MIT",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
