@@ -106,18 +106,21 @@ async function generateImage(prompt) {
  */
 async function removeBackground(imageBuffer, mimeType) {
   console.log(`\n[REMOVE-BG] Removing background from image...`);
+  console.log(`[REMOVE-BG] Image size: ${imageBuffer.length} bytes`);
   
   const base64Image = imageBuffer.toString("base64");
   const dataUri = `data:${mimeType};base64,${base64Image}`;
   
   const url = "https://api.replicate.com/v1/predictions";
-  const version = "7ae9430b0b8c1c29b2d4e7d9a0ef4a1487727bd5262d71a4c9f6aef1a3d3cf6e"; // background-remover
+  // Using 851-labs/background-remover (updated to latest version)
+  const version = "a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc";
   
   try {
+    console.log(`[REMOVE-BG] Sending request with version: ${version}`);
     const response = await axios.post(url, {
       version: version,
       input: {
-        image: dataUri
+        image: `data:${mimeType};base64,${base64Image}`
       }
     }, {
       headers: {
@@ -125,8 +128,14 @@ async function removeBackground(imageBuffer, mimeType) {
         "Content-Type": "application/json",
         "Prefer": "wait"
       },
-      timeout: 120000
+      timeout: 120000,
+      validateStatus: () => true // Don't throw on any status code
     });
+
+    if (response.status !== 200 && response.status !== 201) {
+      console.error(`[REMOVE-BG] API Error ${response.status}:`, JSON.stringify(response.data, null, 2));
+      throw new Error(`API returned status ${response.status}: ${response.data.detail || response.data.error || JSON.stringify(response.data)}`);
+    }
 
     let prediction = response.data;
     console.log(`[REMOVE-BG] Prediction ID: ${prediction.id}`);
@@ -159,10 +168,10 @@ async function removeBackground(imageBuffer, mimeType) {
     console.log(`[REMOVE-BG] Downloading image from: ${imageUrl}`);
     
     const imageResponse = await axios.get(imageUrl, { responseType: "arraybuffer" });
-    const imageBuffer = Buffer.from(imageResponse.data);
+    const resultBuffer = Buffer.from(imageResponse.data);
     
-    console.log(`[REMOVE-BG] ✓ Background removed successfully (${imageBuffer.length} bytes)`);
-    return imageBuffer;
+    console.log(`[REMOVE-BG] ✓ Background removed successfully (${resultBuffer.length} bytes)`);
+    return resultBuffer;
   } catch (error) {
     console.error("[REMOVE-BG] Error:", error.message);
     throw error;

@@ -232,7 +232,7 @@ async function editImageReplicate(base64Image, mimeType, prompt) {
 
 async function removeBackgroundReplicate(base64Image, mimeType) {
   // Using 851-labs/background-remover
-  const version = "7ae9430b0b8c1c29b2d4e7d9a0ef4a1487727bd5262d71a4c9f6aef1a3d3cf6e";
+  const version = "a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc";
   const url = "https://api.replicate.com/v1/predictions";
   
   const dataUri = `data:${mimeType};base64,${base64Image}`;
