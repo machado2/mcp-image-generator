@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import readline from "readline";
 import { fileURLToPath } from "url";
+import { GoogleGenAI } from "@google/genai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,55 +43,114 @@ console.error(`[System] Using Image Provider: ${activeProvider.toUpperCase()}`);
 
 // --- Gemini Implementation ---
 const GEMINI_MODEL = "gemini-3-pro-image-preview";
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
-async function generateImageGemini(prompt) {
-  const url = `${GEMINI_BASE_URL}/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-  const requestBody = {
-    contents: [{ parts: [{ text: `${prompt}\n\nReturn ONLY the base64 encoded image string of the result, with no markdown formatting or explanation.` }] }],
-  };
-
-  const response = await axios.post(url, requestBody, { timeout: 60000 });
-  
-  if (!response.data.candidates?.[0]?.content?.parts?.[0]) {
-    throw new Error("Invalid response from Gemini API");
-  }
-
-  const part = response.data.candidates[0].content.parts[0];
-  if (part.inlineData?.data) return Buffer.from(part.inlineData.data, "base64");
-  if (part.text) {
-      const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
-      return Buffer.from(cleanText, "base64");
-  }
-  throw new Error("No image data in Gemini API response");
+let geminiClient = null;
+if (GEMINI_API_KEY) {
+    geminiClient = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 }
 
-async function editImageGemini(base64Image, mimeType, prompt) {
-    const url = `${GEMINI_BASE_URL}/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-    const requestBody = {
-      contents: [
-        {
-          parts: [
-            { text: `${prompt}\n\nReturn ONLY the base64 encoded image string of the result, with no markdown formatting or explanation.` },
-            { inlineData: { mimeType: mimeType, data: base64Image } },
-          ],
-        },
-      ],
-    };
+async function generateImageGemini(prompt, options = {}) {
+  if (!geminiClient) throw new Error("Gemini API Key not initialized");
+
+  const config = {
+      responseModalities: ["IMAGE"], 
+  };
   
-    const response = await axios.post(url, requestBody, { timeout: 60000 });
+  if (options.aspectRatio || options.resolution) {
+      config.imageConfig = {};
+      if (options.aspectRatio) config.imageConfig.aspectRatio = options.aspectRatio;
+      if (options.resolution) config.imageConfig.imageSize = options.resolution;
+  }
+  
+  if (options.numberOfImages) {
+       config.candidateCount = options.numberOfImages;
+  }
+
+  try {
+    const response = await geminiClient.models.generateContent({
+        model: GEMINI_MODEL,
+        contents: { parts: [{ text: prompt }] },
+        config: config
+    });
     
-    if (!response.data.candidates?.[0]?.content?.parts?.[0]) {
-      throw new Error("Invalid response from Gemini API");
+    if (!response.candidates || response.candidates.length === 0) {
+        throw new Error("No candidates in Gemini API response");
     }
-  
-    const part = response.data.candidates[0].content.parts[0];
-    if (part.inlineData?.data) return Buffer.from(part.inlineData.data, "base64");
-    if (part.text) {
-        const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
-        return Buffer.from(cleanText, "base64");
+    
+    const images = [];
+    for (const candidate of response.candidates) {
+        const part = candidate.content.parts[0];
+        if (part.inlineData && part.inlineData.data) {
+            images.push(Buffer.from(part.inlineData.data, "base64"));
+        } else if (part.text) {
+             // Clean up potential markdown
+             const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
+             if (/^[A-Za-z0-9+/=]+$/.test(cleanText)) {
+                  images.push(Buffer.from(cleanText, "base64"));
+             }
+        }
     }
-    throw new Error("No image data in Gemini API response");
+    
+    if (images.length === 0) {
+         throw new Error("No image data in Gemini API response");
+    }
+    
+    return images; 
+  } catch (error) {
+      console.error("Gemini Generation Error:", error);
+      throw error;
+  }
+}
+
+async function editImageGemini(base64Image, mimeType, prompt, options = {}) {
+    if (!geminiClient) throw new Error("Gemini API Key not initialized");
+
+     const config = {
+        responseModalities: ["IMAGE"], 
+    };
+    
+    if (options.aspectRatio || options.resolution) {
+        config.imageConfig = {};
+        if (options.aspectRatio) config.imageConfig.aspectRatio = options.aspectRatio;
+        if (options.resolution) config.imageConfig.imageSize = options.resolution;
+    }
+    
+    if (options.numberOfImages) {
+        config.candidateCount = options.numberOfImages;
+   }
+
+    try {
+        const response = await geminiClient.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: [
+                { text: prompt },
+                { inlineData: { mimeType: mimeType, data: base64Image } }
+            ],
+            config: config
+        });
+        
+        const images = [];
+        for (const candidate of response.candidates) {
+            const part = candidate.content.parts[0];
+            if (part.inlineData && part.inlineData.data) {
+                images.push(Buffer.from(part.inlineData.data, "base64"));
+            } else if (part.text) {
+                 const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
+                 if (/^[A-Za-z0-9+/=]+$/.test(cleanText)) {
+                      images.push(Buffer.from(cleanText, "base64"));
+                 }
+            }
+        }
+        
+        if (images.length === 0) {
+             throw new Error("No image data in Gemini API response");
+        }
+        
+        return images;
+    } catch (error) {
+        console.error("Gemini Edit Error:", error);
+        throw error;
+    }
 }
 
 // --- Replicate Implementation ---
@@ -135,7 +195,6 @@ async function editImageReplicate(base64Image, mimeType, prompt) {
     const version = "30c1d0b916a6f8efce20493f5d61ee27491ab2a60437c13c588468b9810ec23f";
     const url = "https://api.replicate.com/v1/predictions";
     
-    // Need to upload image or provide as data URI. Replicate accepts data URI.
     const dataUri = `data:${mimeType};base64,${base64Image}`;
 
     const response = await axios.post(url, {
@@ -166,7 +225,7 @@ async function editImageReplicate(base64Image, mimeType, prompt) {
   
     if (prediction.status === "failed") throw new Error("Replicate edit failed: " + prediction.error);
     
-    const imageUrl = prediction.output; // usually a string url for this model
+    const imageUrl = prediction.output; 
     const imageResponse = await axios.get(imageUrl, { responseType: "arraybuffer" });
     return Buffer.from(imageResponse.data);
 }
@@ -190,40 +249,6 @@ async function generateImageHuggingFace(prompt) {
 }
 
 async function editImageHuggingFace(base64Image, mimeType, prompt) {
-    // Using InstructPix2Pix
-    const modelId = "timbrooks/instruct-pix2pix";
-    const url = `https://api-inference.huggingface.co/models/${modelId}`;
-
-    // HF Inference API for img2img usually takes the image as binary in the body or JSON with specific structure depending on the pipeline.
-    // For InstructPix2Pix on Inference API, it might be tricky. Let's try sending as parameters if supported, but HF Inference API for standard models usually expects simple input.
-    // A better bet for standard API is generic Image-to-Image.
-    // However, InstructPix2Pix is specific.
-    
-    // Alternative: Use image-to-image with SD 1.5 if InstructPix2Pix is not easily available via simple API call.
-    // But let's try the standard way for image inputs in HF API: binary body doesn't work well for "edit with prompt".
-    // usually it's { inputs: "prompt", parameters: {...}, image: "base64..." } or similar.
-    // Actually, many HF Spaces/Inference endpoints expect the image as a file buffer or base64.
-
-    // Trying a simpler approach for HF: standard generation (text-to-image) is robust. Image editing is hit or miss on free Inference API.
-    // We will try to use the same model as generation but with img2img if possible, or just failover to text-to-image with a warning if we can't do it.
-    
-    // BUT, let's try to just call the API. If it fails, we throw.
-    // Reading HF docs: For image-to-image, often you send the image bytes directly, but where does the prompt go? Headers? Query params?
-    // Actually, for `timbrooks/instruct-pix2pix`, it's not always hosted on the free tier.
-    
-    // Let's stick to what works reliably:
-    // If the user asks for HF edit, we might have to simulate it or warn.
-    // But let's try to use `runwayml/stable-diffusion-v1-5` for img2img if we can.
-    
-    // Actually, for this implementation, to ensure "cheaper options" work:
-    // I'll implement Text-to-Image for HF. 
-    // For Edit-Image, I'll use `timbrooks/instruct-pix2pix` and send parameters. 
-    // If it fails, I'll catch and say "Editing not supported on free HF tier for this model".
-    
-    // To keep it simple for this task: I will implement `generate` for HF.
-    // For `edit`, I will throw an error saying "Image editing is not fully supported on Hugging Face provider yet".
-    // Unless I use a specific endpoint I know works.
-    
     throw new Error("Image editing is currently only supported on Gemini and Replicate providers.");
 }
 
@@ -258,25 +283,89 @@ const tools = [
   },
 ];
 
-async function generateImageFromText(prompt, outputPath = "output.png") {
+if (activeProvider === PROVIDERS.GEMINI) {
+    // Enhance generate_image_from_text with Gemini params
+    const genTool = tools.find(t => t.name === "generate_image_from_text");
+    genTool.description += " Supports advanced parameters like aspectRatio and resolution.";
+    genTool.inputSchema.properties.aspectRatio = { 
+        type: "string", 
+        description: "Aspect ratio of the image (e.g., '1:1', '3:4', '4:3', '9:16', '16:9')." 
+    };
+    genTool.inputSchema.properties.resolution = { 
+        type: "string", 
+        description: "Resolution/Size of the image (e.g., '1K', '2K', '4K')." 
+    };
+    genTool.inputSchema.properties.numberOfImages = { 
+        type: "number", 
+        description: "Number of images to generate." 
+    };
+
+    // Enhance edit_image with Gemini params
+    const editTool = tools.find(t => t.name === "edit_image");
+    editTool.inputSchema.properties.aspectRatio = { 
+        type: "string", 
+        description: "Aspect ratio." 
+    };
+    editTool.inputSchema.properties.resolution = { 
+        type: "string", 
+        description: "Resolution/Size." 
+    };
+    editTool.inputSchema.properties.numberOfImages = { 
+        type: "number", 
+        description: "Number of images." 
+    };
+}
+
+async function generateImageFromText(prompt, outputPath = "output.png", options = {}) {
   try {
-    let imageBuffer;
+    let imageBuffers = [];
     
     if (activeProvider === PROVIDERS.GEMINI) {
-      imageBuffer = await generateImageGemini(prompt);
+      imageBuffers = await generateImageGemini(prompt, options);
     } else if (activeProvider === PROVIDERS.REPLICATE) {
-      imageBuffer = await generateImageReplicate(prompt);
+      const buf = await generateImageReplicate(prompt);
+      imageBuffers = [buf];
     } else if (activeProvider === PROVIDERS.HUGGINGFACE) {
-      imageBuffer = await generateImageHuggingFace(prompt);
+      const buf = await generateImageHuggingFace(prompt);
+      imageBuffers = [buf];
     }
 
+    const results = [];
     const resolvedOutputPath = path.resolve(outputPath);
-    fs.writeFileSync(resolvedOutputPath, imageBuffer);
+    const dir = path.dirname(resolvedOutputPath);
+    const ext = path.extname(resolvedOutputPath);
+    const name = path.basename(resolvedOutputPath, ext);
+
+    // Ensure directory exists
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+
+    imageBuffers.forEach((buf, index) => {
+        // If only 1 image, use the exact output path requested. 
+        // If multiple, append index to others or all?
+        // Let's say if 1 image: use outputPath.
+        // If > 1 image: use outputPath for first, and append _n for others? 
+        // Or outputPath_1, outputPath_2...
+        
+        // Standard behavior: if user asked for "img.png" and we have 4 images:
+        // img.png, img_2.png, img_3.png, img_4.png
+        
+        let filePath;
+        if (index === 0) {
+            filePath = resolvedOutputPath;
+        } else {
+            filePath = path.join(dir, `${name}_${index + 1}${ext}`);
+        }
+        
+        fs.writeFileSync(filePath, buf);
+        results.push(filePath);
+    });
     
     return {
       success: true,
-      output_path: resolvedOutputPath,
-      message: `Image generated successfully using ${activeProvider}`,
+      output_paths: results,
+      message: `Image(s) generated successfully using ${activeProvider}`,
     };
   } catch (error) {
     console.error("Error generating image:", error.response ? error.response.data : error.message);
@@ -284,7 +373,7 @@ async function generateImageFromText(prompt, outputPath = "output.png") {
   }
 }
 
-async function editImage(imagePath, outputPath = "output.png", prompt) {
+async function editImage(imagePath, outputPath = "output.png", prompt, options = {}) {
     try {
         const resolvedPath = path.resolve(imagePath);
         if (!fs.existsSync(resolvedPath)) throw new Error(`Image file not found: ${resolvedPath}`);
@@ -295,23 +384,44 @@ async function editImage(imagePath, outputPath = "output.png", prompt) {
         const mimeTypes = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
         const mimeType = mimeTypes[ext] || "image/png";
 
-        let resultBuffer;
+        let imageBuffers = [];
 
         if (activeProvider === PROVIDERS.GEMINI) {
-            resultBuffer = await editImageGemini(base64Image, mimeType, prompt);
+            imageBuffers = await editImageGemini(base64Image, mimeType, prompt, options);
         } else if (activeProvider === PROVIDERS.REPLICATE) {
-            resultBuffer = await editImageReplicate(base64Image, mimeType, prompt);
+            const buf = await editImageReplicate(base64Image, mimeType, prompt);
+            imageBuffers = [buf];
         } else if (activeProvider === PROVIDERS.HUGGINGFACE) {
-            resultBuffer = await editImageHuggingFace(base64Image, mimeType, prompt);
+            const buf = await editImageHuggingFace(base64Image, mimeType, prompt);
+            imageBuffers = [buf];
         }
 
+        const results = [];
         const resolvedOutputPath = path.resolve(outputPath);
-        fs.writeFileSync(resolvedOutputPath, resultBuffer);
+        const dir = path.dirname(resolvedOutputPath);
+        const extOutput = path.extname(resolvedOutputPath);
+        const name = path.basename(resolvedOutputPath, extOutput);
+
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        imageBuffers.forEach((buf, index) => {
+            let filePath;
+            if (index === 0) {
+                filePath = resolvedOutputPath;
+            } else {
+                filePath = path.join(dir, `${name}_${index + 1}${extOutput}`);
+            }
+            
+            fs.writeFileSync(filePath, buf);
+            results.push(filePath);
+        });
 
         return {
             success: true,
-            output_path: resolvedOutputPath,
-            message: `Image edited successfully using ${activeProvider}`,
+            output_paths: results,
+            message: `Image(s) edited successfully using ${activeProvider}`,
         };
     } catch (error) {
         console.error("Error editing image:", error.response ? error.response.data : error.message);
@@ -323,10 +433,18 @@ async function editImage(imagePath, outputPath = "output.png", prompt) {
 
 async function processToolCall(toolName, toolInput) {
   if (toolName === "generate_image_from_text") {
-    return await generateImageFromText(toolInput.prompt, toolInput.output_path);
+    return await generateImageFromText(toolInput.prompt, toolInput.output_path, {
+        aspectRatio: toolInput.aspectRatio,
+        resolution: toolInput.resolution,
+        numberOfImages: toolInput.numberOfImages
+    });
   }
   if (toolName === "edit_image") {
-    return await editImage(toolInput.image_path, toolInput.output_path, toolInput.prompt);
+    return await editImage(toolInput.image_path, toolInput.output_path, toolInput.prompt, {
+        aspectRatio: toolInput.aspectRatio,
+        resolution: toolInput.resolution,
+        numberOfImages: toolInput.numberOfImages
+    });
   }
   throw new Error(`Unknown tool: ${toolName}`);
 }
