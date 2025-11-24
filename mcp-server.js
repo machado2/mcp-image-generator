@@ -6,6 +6,7 @@ import path from "path";
 import readline from "readline";
 import { fileURLToPath } from "url";
 import { GoogleGenAI } from "@google/genai";
+import sharp from "sharp";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -324,7 +325,7 @@ async function removeBackgroundHuggingFace(imageBuffer) {
 const tools = [
   {
     name: "generate_image_from_text",
-    description: "Generate an image from a text description.",
+    description: "Generate an image from a text description. Note: When using Gemini, it only supports specific resolutions and PNG format.",
     inputSchema: {
       type: "object",
       properties: {
@@ -336,7 +337,7 @@ const tools = [
   },
   {
     name: "edit_image",
-    description: "Edit an existing image based on your prompt.",
+    description: "Edit an existing image based on your prompt. Note: This tool ONLY alters the visual content of the image; it does NOT change the image format or dimensions.",
     inputSchema: {
       type: "object",
       properties: {
@@ -359,6 +360,45 @@ const tools = [
       required: ["image_path"],
     },
   },
+  {
+    name: "convert_image_format",
+    description: "Convert an image to a different format (e.g., PNG, JPEG, WEBP, GIF, TIFF, AVIF).",
+    inputSchema: {
+        type: "object",
+        properties: {
+            source_path: { type: "string", description: "Path to the source image." },
+            output_path: { type: "string", description: "Path where the converted image will be saved. If not provided, will save in the same directory with new extension." },
+            format: { type: "string", description: "Target format (png, jpeg, jpg, webp, gif, tiff, avif)." }
+        },
+        required: ["source_path", "format"]
+    }
+  },
+  {
+    name: "resize_image",
+    description: "Resize an image to specific dimensions.",
+    inputSchema: {
+        type: "object",
+        properties: {
+            source_path: { type: "string", description: "Path to the source image." },
+            output_path: { type: "string", description: "Path where the resized image will be saved." },
+            width: { type: "number", description: "Target width in pixels." },
+            height: { type: "number", description: "Target height in pixels. Optional if preserving aspect ratio." },
+            fit: { type: "string", description: "How the image should be resized to fit the dimensions (cover, contain, fill, inside, outside). Default is 'cover'." }
+        },
+        required: ["source_path", "width"]
+    }
+  },
+  {
+    name: "get_image_info",
+    description: "Get metadata about an image (dimensions, format, etc.).",
+    inputSchema: {
+        type: "object",
+        properties: {
+            image_path: { type: "string", description: "Path to the image file." }
+        },
+        required: ["image_path"]
+    }
+  }
 ];
 
 if (activeProvider === PROVIDERS.GEMINI) {
@@ -420,15 +460,6 @@ async function generateImageFromText(prompt, outputPath = "output.png", options 
     }
 
     imageBuffers.forEach((buf, index) => {
-        // If only 1 image, use the exact output path requested. 
-        // If multiple, append index to others or all?
-        // Let's say if 1 image: use outputPath.
-        // If > 1 image: use outputPath for first, and append _n for others? 
-        // Or outputPath_1, outputPath_2...
-        
-        // Standard behavior: if user asked for "img.png" and we have 4 images:
-        // img.png, img_2.png, img_3.png, img_4.png
-        
         let filePath;
         if (index === 0) {
             filePath = resolvedOutputPath;
@@ -570,6 +601,111 @@ async function removeBackground(imagePath, outputPath) {
     }
 }
 
+// --- New Tools Implementation (Sharp) ---
+
+async function convertImage(sourcePath, outputPath, format) {
+    try {
+        const resolvedSourcePath = path.resolve(sourcePath);
+        if (!fs.existsSync(resolvedSourcePath)) throw new Error(`Source image not found: ${resolvedSourcePath}`);
+
+        // Normalize format
+        format = format.toLowerCase().replace('.', '');
+        if (format === 'jpg') format = 'jpeg';
+        
+        const validFormats = ['png', 'jpeg', 'webp', 'gif', 'tiff', 'avif', 'heif'];
+        if (!validFormats.includes(format)) throw new Error(`Unsupported format: ${format}`);
+
+        // Determine output path if not provided
+        if (!outputPath) {
+            const dir = path.dirname(resolvedSourcePath);
+            const name = path.basename(resolvedSourcePath, path.extname(resolvedSourcePath));
+            outputPath = path.join(dir, `${name}.${format}`);
+        }
+        
+        const resolvedOutputPath = path.resolve(outputPath);
+        const dirOutput = path.dirname(resolvedOutputPath);
+        if (!fs.existsSync(dirOutput)) {
+            fs.mkdirSync(dirOutput, { recursive: true });
+        }
+
+        await sharp(resolvedSourcePath)
+            .toFormat(format)
+            .toFile(resolvedOutputPath);
+
+        return {
+            success: true,
+            output_path: resolvedOutputPath,
+            message: `Image converted to ${format} successfully.`
+        };
+
+    } catch (error) {
+        console.error("Error converting image:", error.message);
+        throw error;
+    }
+}
+
+async function resizeImage(sourcePath, outputPath, width, height, fit = 'cover') {
+    try {
+        const resolvedSourcePath = path.resolve(sourcePath);
+        if (!fs.existsSync(resolvedSourcePath)) throw new Error(`Source image not found: ${resolvedSourcePath}`);
+
+        if (!outputPath) {
+             const dir = path.dirname(resolvedSourcePath);
+             const name = path.basename(resolvedSourcePath, path.extname(resolvedSourcePath));
+             outputPath = path.join(dir, `${name}_resized${path.extname(resolvedSourcePath)}`);
+        }
+
+        const resolvedOutputPath = path.resolve(outputPath);
+        const dirOutput = path.dirname(resolvedOutputPath);
+        if (!fs.existsSync(dirOutput)) {
+            fs.mkdirSync(dirOutput, { recursive: true });
+        }
+
+        await sharp(resolvedSourcePath)
+            .resize({
+                width: width,
+                height: height,
+                fit: fit
+            })
+            .toFile(resolvedOutputPath);
+
+        return {
+            success: true,
+            output_path: resolvedOutputPath,
+            message: `Image resized to ${width}x${height || 'auto'} successfully.`
+        };
+
+    } catch (error) {
+        console.error("Error resizing image:", error.message);
+        throw error;
+    }
+}
+
+async function getImageInfo(imagePath) {
+    try {
+        const resolvedPath = path.resolve(imagePath);
+        if (!fs.existsSync(resolvedPath)) throw new Error(`Image file not found: ${resolvedPath}`);
+
+        const metadata = await sharp(resolvedPath).metadata();
+        
+        return {
+            success: true,
+            info: {
+                format: metadata.format,
+                width: metadata.width,
+                height: metadata.height,
+                channels: metadata.channels,
+                size: fs.statSync(resolvedPath).size
+            }
+        };
+
+    } catch (error) {
+        console.error("Error getting image info:", error.message);
+        throw error;
+    }
+}
+
+
 // --- MCP Server Boilerplate ---
 
 async function processToolCall(toolName, toolInput) {
@@ -589,6 +725,15 @@ async function processToolCall(toolName, toolInput) {
   }
   if (toolName === "remove_background") {
     return await removeBackground(toolInput.image_path, toolInput.output_path);
+  }
+  if (toolName === "convert_image_format") {
+      return await convertImage(toolInput.source_path, toolInput.output_path, toolInput.format);
+  }
+  if (toolName === "resize_image") {
+      return await resizeImage(toolInput.source_path, toolInput.output_path, toolInput.width, toolInput.height, toolInput.fit);
+  }
+  if (toolName === "get_image_info") {
+      return await getImageInfo(toolInput.image_path);
   }
   throw new Error(`Unknown tool: ${toolName}`);
 }

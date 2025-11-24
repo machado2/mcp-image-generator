@@ -1,6 +1,6 @@
 # Image Generation MCP Server
 
-An MCP (Model Context Protocol) server for image generation and editing using multiple providers (Gemini, Replicate, Hugging Face).
+An MCP (Model Context Protocol) server for image generation and editing using multiple providers (Gemini, Replicate, Hugging Face), plus local image manipulation tools.
 
 ## Installation
 
@@ -115,15 +115,15 @@ Generates a new image from a text description.
 
 **Gemini Provider Extra Parameters:**
 When using Google Gemini, these additional parameters are available:
-- `aspectRatio`: Aspect ratio of the image. Supported values: `1:1` (default), `3:2`, `2:3`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`.
-- `resolution`: Resolution/Size of the image. Maps to Gemini's `imageSize`. Supported values: `1K` (default), `2K`, `4K`.
+- `aspectRatio`: Aspect ratio of the image. Supported values: `1:1` (default), `3:4`, `4:3`, `9:16`, `16:9`.
+- `resolution`: Resolution/Size of the image. Supported values: `1K` (default), `2K`, `4K`.
 - `numberOfImages`: Number of images to generate (candidate count).
 
-**Note on Transparency:**
-Gemini 3 Pro currently does not support generating images with transparent backgrounds (alpha channel). Images will be generated with a solid background.
+**Note:** Gemini generates images in PNG format.
 
 ### `edit_image`
 Edits an existing image based on instructions.
+**Note:** This tool only modifies the image content (visuals); it does NOT change the image format or dimensions.
 
 **Base Parameters:**
 - `image_path`: Path to the original image.
@@ -131,7 +131,38 @@ Edits an existing image based on instructions.
 - `output_path` (optional): Path where the result will be saved.
 
 **Gemini Provider Extra Parameters:**
-- `aspectRatio`, `resolution`, `numberOfImages` (see above).
+- `aspectRatio`, `resolution`, `numberOfImages`.
+
+### `remove_background`
+Removes the background from an image.
+
+**Parameters:**
+- `image_path`: Path to the image file.
+- `output_path` (optional): Path where the transparent image will be saved.
+
+### `convert_image_format`
+Converts an image to a different format (e.g., PNG, JPEG, WEBP).
+
+**Parameters:**
+- `source_path`: Path to the source image.
+- `format`: Target format (`png`, `jpeg`, `jpg`, `webp`, `gif`, `tiff`, `avif`).
+- `output_path` (optional): Path where the converted image will be saved.
+
+### `resize_image`
+Resizes an image to specific dimensions.
+
+**Parameters:**
+- `source_path`: Path to the source image.
+- `width`: Target width in pixels.
+- `height` (optional): Target height in pixels.
+- `fit` (optional): How the image should be resized to fit the dimensions (`cover`, `contain`, `fill`, `inside`, `outside`). Default is `cover`.
+- `output_path` (optional): Path where the resized image will be saved.
+
+### `get_image_info`
+Get metadata about an image (dimensions, format, etc.).
+
+**Parameters:**
+- `image_path`: Path to the image file.
 
 ## Requirements
 
