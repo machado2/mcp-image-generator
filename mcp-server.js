@@ -230,6 +230,44 @@ async function editImageReplicate(base64Image, mimeType, prompt) {
     return Buffer.from(imageResponse.data);
 }
 
+async function removeBackgroundReplicate(base64Image, mimeType) {
+  // Using 851-labs/background-remover
+  const version = "7ae9430b0b8c1c29b2d4e7d9a0ef4a1487727bd5262d71a4c9f6aef1a3d3cf6e";
+  const url = "https://api.replicate.com/v1/predictions";
+  
+  const dataUri = `data:${mimeType};base64,${base64Image}`;
+
+  const response = await axios.post(url, {
+    version: version,
+    input: {
+      image: dataUri
+    }
+  }, {
+    headers: {
+      "Authorization": `Token ${REPLICATE_API_TOKEN}`,
+      "Content-Type": "application/json",
+      "Prefer": "wait"
+    }
+  });
+
+  let prediction = response.data;
+  
+  while (prediction.status !== "succeeded" && prediction.status !== "failed") {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const statusUrl = prediction.urls.get;
+    const statusResponse = await axios.get(statusUrl, {
+      headers: { "Authorization": `Token ${REPLICATE_API_TOKEN}` }
+    });
+    prediction = statusResponse.data;
+  }
+
+  if (prediction.status === "failed") throw new Error("Replicate background removal failed: " + prediction.error);
+  
+  const imageUrl = prediction.output; 
+  const imageResponse = await axios.get(imageUrl, { responseType: "arraybuffer" });
+  return Buffer.from(imageResponse.data);
+}
+
 
 // --- Hugging Face Implementation ---
 async function generateImageHuggingFace(prompt) {
@@ -250,6 +288,34 @@ async function generateImageHuggingFace(prompt) {
 
 async function editImageHuggingFace(base64Image, mimeType, prompt) {
     throw new Error("Image editing is currently only supported on Gemini and Replicate providers.");
+}
+
+async function removeBackgroundHuggingFace(imageBuffer) {
+  // Using briaai/RMBG-2.0 Space
+  const API_URL = "https://briaai-bria-rmbg-20.hf.space/run/predict";
+  
+  const formData = new FormData();
+  formData.append("data", new Blob([imageBuffer]), "input.png");
+  
+  const resp = await fetch(API_URL, {
+    method: "POST",
+    body: formData,
+  });
+  
+  const result = await resp.json();
+  if (result.error) {
+      throw new Error("Hugging Face Space error: " + JSON.stringify(result.error));
+  }
+
+  // result.data[0] returns the base64 PNG data URL, we need to strip the prefix if present or just parse it.
+  // Usually it is "data:image/png;base64,..." or just base64.
+  // The user example says: const base64Data = result.data[0].split(",")[1];
+  let base64Data = result.data[0];
+  if (base64Data.includes(",")) {
+      base64Data = base64Data.split(",")[1];
+  }
+  
+  return Buffer.from(base64Data, "base64");
 }
 
 
@@ -279,6 +345,18 @@ const tools = [
         output_path: { type: "string", description: "Path where the generated image will be saved." },
       },
       required: ["image_path", "prompt"],
+    },
+  },
+  {
+    name: "remove_background",
+    description: "Remove the background from an image.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        image_path: { type: "string", description: "Path to the image file." },
+        output_path: { type: "string", description: "Path where the transparent image will be saved." },
+      },
+      required: ["image_path"],
     },
   },
 ];
@@ -429,6 +507,69 @@ async function editImage(imagePath, outputPath = "output.png", prompt, options =
     }
 }
 
+async function removeBackground(imagePath, outputPath) {
+    try {
+        const resolvedPath = path.resolve(imagePath);
+        if (!fs.existsSync(resolvedPath)) throw new Error(`Image file not found: ${resolvedPath}`);
+        
+        const imageBuffer = fs.readFileSync(resolvedPath);
+        const base64Image = imageBuffer.toString("base64");
+        const ext = path.extname(resolvedPath).toLowerCase();
+        const mimeTypes = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
+        const mimeType = mimeTypes[ext] || "image/png";
+
+        let imageBufferResult = null;
+        let usedProvider = "";
+
+        // Priority: Replicate > Hugging Face
+        if (REPLICATE_API_TOKEN) {
+            try {
+                console.error("[System] Attempting background removal with Replicate...");
+                imageBufferResult = await removeBackgroundReplicate(base64Image, mimeType);
+                usedProvider = "Replicate";
+            } catch (err) {
+                console.error("Replicate background removal failed, falling back if possible:", err.message);
+            }
+        }
+        
+        if (!imageBufferResult) {
+            // Fallback to Hugging Face (Space doesn't necessarily need token, or we can use the Space implementation)
+             console.error("[System] Attempting background removal with Hugging Face Space...");
+             imageBufferResult = await removeBackgroundHuggingFace(imageBuffer);
+             usedProvider = "Hugging Face";
+        }
+
+        if (!imageBufferResult) {
+            throw new Error("Background removal failed with all available providers.");
+        }
+
+        // Determine output path
+        if (!outputPath) {
+             const dir = path.dirname(resolvedPath);
+             const name = path.basename(resolvedPath, ext);
+             outputPath = path.join(dir, `${name}_nobg.png`);
+        }
+
+        const resolvedOutputPath = path.resolve(outputPath);
+        const dirOutput = path.dirname(resolvedOutputPath);
+        if (!fs.existsSync(dirOutput)) {
+            fs.mkdirSync(dirOutput, { recursive: true });
+        }
+
+        fs.writeFileSync(resolvedOutputPath, imageBufferResult);
+
+        return {
+            success: true,
+            output_paths: [resolvedOutputPath],
+            message: `Background removed successfully using ${usedProvider}`,
+        };
+
+    } catch (error) {
+        console.error("Error removing background:", error.message);
+        throw error;
+    }
+}
+
 // --- MCP Server Boilerplate ---
 
 async function processToolCall(toolName, toolInput) {
@@ -445,6 +586,9 @@ async function processToolCall(toolName, toolInput) {
         resolution: toolInput.resolution,
         numberOfImages: toolInput.numberOfImages
     });
+  }
+  if (toolName === "remove_background") {
+    return await removeBackground(toolInput.image_path, toolInput.output_path);
   }
   throw new Error(`Unknown tool: ${toolName}`);
 }
