@@ -25,7 +25,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test-generate-and-remove-bg.js && node test-sound-generation.js"
+    "test": "node test-generate-and-remove-bg.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",

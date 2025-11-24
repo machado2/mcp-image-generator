@@ -1,0 +1,20 @@
+{
+  "name": "sound-generation-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for sound generation using Replicate (AudioGen, AudioLDM, Stable Audio)",
+  "type": "module",
+  "main": "mcp-server.js",
+  "bin": {
+    "sound-generation-mcp-server": "./mcp-server.js"
+  },
+  "scripts": {
+    "start": "node mcp-server.js",
+    "test": "node test-sound-generation.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
