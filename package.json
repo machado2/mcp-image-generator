@@ -1,6 +1,6 @@
 {
   "name": "image-generation-mcp-server",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "MCP server for image generation and editing using multiple providers (Gemini, Replicate, Hugging Face)",
   "type": "module",
   "main": "mcp-server.js",
@@ -25,7 +25,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node test-generate-and-remove-bg.js"
+    "test": "node test-generate-and-remove-bg.js && node test-sound-generation.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
