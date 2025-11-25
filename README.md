@@ -45,15 +45,17 @@ node mcp-server.js
 
 ## Configuration in MCP Client
 
-You can configure these servers in your MCP client (like Claude Desktop or Amp) by pointing to the respective `mcp-server.js` files.
+You can configure these servers in your MCP client (like Claude Desktop, Amp, or Windsurf) by using the published npm packages via `npx`.
 
 **Image Generation:**
 ```json
 {
-  "command": "node",
-  "args": ["/path/to/mcpimage/image-generation/mcp-server.js"],
+  "command": "npx",
+  "args": ["-y", "image-generation-mcp-server"],
   "env": {
-    "GEMINI_API_KEY": "..."
+    "GEMINI_API_KEY": "...",
+    "REPLICATE_API_TOKEN": "optional-replicate-token",
+    "HUGGING_FACE_TOKEN": "optional-hf-token"
   }
 }
 ```
@@ -61,8 +63,8 @@ You can configure these servers in your MCP client (like Claude Desktop or Amp) 
 **Sound Generation:**
 ```json
 {
-  "command": "node",
-  "args": ["/path/to/mcpimage/sound-generation/mcp-server.js"],
+  "command": "npx",
+  "args": ["-y", "sound-generation-mcp-server"],
   "env": {
     "REPLICATE_API_TOKEN": "..."
   }

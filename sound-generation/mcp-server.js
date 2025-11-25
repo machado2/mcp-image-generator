@@ -229,7 +229,11 @@ async function main() {
           id: request.id,
           result: {
             protocolVersion: "2024-11-05",
-            capabilities: {},
+            capabilities: {
+              tools: {
+                listChanged: false,
+              },
+            },
             serverInfo: { name: "sound-generation-server", version: "1.0.0" },
           },
         });

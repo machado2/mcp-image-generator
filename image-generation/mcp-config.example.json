@@ -1,10 +1,12 @@
 {
   "mcpServers": {
     "image-generation": {
-      "command": "node",
-      "args": ["d:/src/mcpimage/mcp-server.js"],
+      "command": "npx",
+      "args": ["-y", "image-generation-mcp-server"],
       "env": {
-        "GEMINI_API_KEY": ""
+        "GEMINI_API_KEY": "",
+        "REPLICATE_API_TOKEN": "",
+        "HUGGING_FACE_TOKEN": ""
       }
     }
   }
