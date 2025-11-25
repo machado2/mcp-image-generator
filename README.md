@@ -69,7 +69,7 @@ You can configure these servers in your MCP client (like Claude Desktop, Amp, or
 ```json
 {
   "command": "npx",
-  "args": ["-y", "image-generation-mcp-server"],
+  "args": ["-y", "mcp-image-gen"],
   "env": {
     "GEMINI_API_KEY": "...",
     "REPLICATE_API_TOKEN": "optional-replicate-token",
@@ -82,7 +82,7 @@ You can configure these servers in your MCP client (like Claude Desktop, Amp, or
 ```json
 {
   "command": "npx",
-  "args": ["-y", "sound-generation-mcp-server"],
+  "args": ["-y", "mcp-sound-gen"],
   "env": {
     "REPLICATE_API_TOKEN": "..."
   }
@@ -93,7 +93,7 @@ You can configure these servers in your MCP client (like Claude Desktop, Amp, or
 ```json
 {
   "command": "npx",
-  "args": ["-y", "mesh-generation-mcp-server"],
+  "args": ["-y", "mcp-mesh-gen"],
   "env": {
     "REPLICATE_API_TOKEN": "..."
   }

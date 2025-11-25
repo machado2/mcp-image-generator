@@ -7,13 +7,13 @@ An MCP (Model Context Protocol) server for image generation and editing using mu
 ### Option 1: Global Installation via npm
 
 ```bash
-npm install -g image-generation-mcp-server
+npm install -g mcp-image-gen
 ```
 
 ### Option 2: Local Installation
 
 ```bash
-npm install image-generation-mcp-server
+npm install mcp-image-gen
 ```
 
 ## Configuration
@@ -66,7 +66,7 @@ Add the following to your configuration file (e.g., `claude_desktop_config.json`
   "mcpServers": {
     "image-generation": {
       "command": "npx",
-      "args": ["-y", "image-generation-mcp-server"],
+      "args": ["-y", "mcp-image-gen"],
       "env": {
         "GEMINI_API_KEY": "your-gemini-api-key",
         "REPLICATE_API_TOKEN": "optional-replicate-token",
@@ -82,7 +82,7 @@ Add the following to your configuration file (e.g., `claude_desktop_config.json`
 To run the server manually:
 
 ```bash
-npx -y image-generation-mcp-server
+npx -y mcp-image-gen
 ```
 
 ### Option 2: Using Node directly
@@ -93,7 +93,7 @@ node path/to/mcp-server.js
 
 #### Option 3: Using global installation
 
-If installed globally with `npm install -g image-generation-mcp-server`:
+If installed globally with `npm install -g mcp-image-gen`:
 
 ```bash
 image-generation-mcp-server
