@@ -2,4 +2,4 @@
 *.png
 *.wav
 *.bin
-.env
+**/.env
