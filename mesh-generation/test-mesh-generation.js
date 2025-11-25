@@ -112,17 +112,25 @@ async function generateMeshReplicate(prompt, params = {}) {
     }
 
     const output = prediction.output;
+    console.log("[GENERATE] Raw output:", JSON.stringify(output, null, 2));
     let meshUrl = null;
 
     if (Array.isArray(output) && output.length > 0) {
-      meshUrl = output[0];
+      const stringUrls = output.filter((u) => typeof u === "string");
+      meshUrl =
+        stringUrls.find((u) => u.toLowerCase().endsWith(".obj")) ||
+        stringUrls.find((u) => !u.toLowerCase().endsWith(".gif")) ||
+        stringUrls[0];
     } else if (typeof output === "string") {
       meshUrl = output;
     } else if (output && typeof output === "object") {
       if (typeof output.mesh === "string") {
         meshUrl = output.mesh;
       } else if (Array.isArray(output.mesh) && output.mesh.length > 0) {
-        meshUrl = output.mesh[0];
+        const meshArray = output.mesh.filter((u) => typeof u === "string");
+        meshUrl =
+          meshArray.find((u) => u.toLowerCase().endsWith(".obj")) ||
+          meshArray[0];
       }
     }
 
@@ -137,7 +145,7 @@ async function generateMeshReplicate(prompt, params = {}) {
     const contentType = meshResponse.headers["content-type"] || "";
 
     console.log(`[GENERATE] ✓ Mesh downloaded (${buffer.length} bytes, content-type: ${contentType})`);
-    return { buffer, contentType };
+    return { buffer, contentType, meshUrl };
   } catch (error) {
     console.error("[GENERATE] Error:", error.message);
     if (error.response) console.error(JSON.stringify(error.response.data, null, 2));
@@ -154,15 +162,26 @@ async function runTest() {
   const prompt = "a low-poly fantasy sword on a stand";
 
   try {
-    const { buffer, contentType } = await generateMeshReplicate(prompt, {});
+    const { buffer, contentType, meshUrl } = await generateMeshReplicate(prompt, {});
 
-    let ext = ".bin";
-    if (contentType.includes("zip")) {
-      ext = ".zip";
-    } else if (contentType.includes("gltf")) {
-      ext = ".glb";
-    } else if (contentType.includes("obj")) {
-      ext = ".obj";
+    let extFromUrl = "";
+    if (meshUrl) {
+      const urlPath = meshUrl.split("?")[0];
+      const dotIndex = urlPath.lastIndexOf(".");
+      if (dotIndex !== -1) {
+        extFromUrl = urlPath.slice(dotIndex);
+      }
+    }
+
+    let ext = extFromUrl || ".bin";
+    if (!extFromUrl) {
+      if (contentType.includes("zip")) {
+        ext = ".zip";
+      } else if (contentType.includes("gltf")) {
+        ext = ".glb";
+      } else if (contentType.includes("obj")) {
+        ext = ".obj";
+      }
     }
 
     const outputPath = path.join(OUTPUT_DIR, `test_mesh${ext}`);

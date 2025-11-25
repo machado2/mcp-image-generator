@@ -3,3 +3,4 @@
 *.wav
 *.bin
 **/.env
+*.obj

@@ -97,14 +97,21 @@ async function generateMeshReplicate(prompt, params = {}) {
   let meshUrl = null;
 
   if (Array.isArray(output) && output.length > 0) {
-    meshUrl = output[0];
+    const stringUrls = output.filter((u) => typeof u === "string");
+    meshUrl =
+      stringUrls.find((u) => u.toLowerCase().endsWith(".obj")) ||
+      stringUrls.find((u) => !u.toLowerCase().endsWith(".gif")) ||
+      stringUrls[0];
   } else if (typeof output === "string") {
     meshUrl = output;
   } else if (output && typeof output === "object") {
     if (typeof output.mesh === "string") {
       meshUrl = output.mesh;
     } else if (Array.isArray(output.mesh) && output.mesh.length > 0) {
-      meshUrl = output.mesh[0];
+      const meshArray = output.mesh.filter((u) => typeof u === "string");
+      meshUrl =
+        meshArray.find((u) => u.toLowerCase().endsWith(".obj")) ||
+        meshArray[0];
     }
   }
 
@@ -118,20 +125,31 @@ async function generateMeshReplicate(prompt, params = {}) {
   const contentType = meshResponse.headers["content-type"] || "";
   const buffer = Buffer.from(meshResponse.data);
 
-  return { buffer, contentType };
+  return { buffer, contentType, meshUrl };
 }
 
 async function generateMesh(prompt, outputPath, params = {}) {
   try {
-    const { buffer, contentType } = await generateMeshReplicate(prompt, params);
+    const { buffer, contentType, meshUrl } = await generateMeshReplicate(prompt, params);
 
-    let ext = ".bin";
-    if (contentType.includes("zip")) {
-      ext = ".zip";
-    } else if (contentType.includes("gltf")) {
-      ext = ".glb";
-    } else if (contentType.includes("obj")) {
-      ext = ".obj";
+    let extFromUrl = "";
+    if (meshUrl) {
+      const urlPath = meshUrl.split("?")[0];
+      const dotIndex = urlPath.lastIndexOf(".");
+      if (dotIndex !== -1) {
+        extFromUrl = urlPath.slice(dotIndex);
+      }
+    }
+
+    let ext = extFromUrl || ".bin";
+    if (!extFromUrl) {
+      if (contentType.includes("zip")) {
+        ext = ".zip";
+      } else if (contentType.includes("gltf")) {
+        ext = ".glb";
+      } else if (contentType.includes("obj")) {
+        ext = ".obj";
+      }
     }
 
     if (!outputPath) {
