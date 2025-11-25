@@ -1,3 +1,5 @@
 **/node_modules
 *.png
 *.wav
+*.bin
+.env

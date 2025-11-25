@@ -1,0 +1,20 @@
+{
+  "name": "mesh-generation-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for 3D mesh generation using Shap-E on Replicate",
+  "type": "module",
+  "main": "mcp-server.js",
+  "bin": {
+    "mesh-generation-mcp-server": "./mcp-server.js"
+  },
+  "scripts": {
+    "start": "node mcp-server.js",
+    "test": "node test-mesh-generation.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
