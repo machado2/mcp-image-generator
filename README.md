@@ -5,7 +5,7 @@ This monorepo contains three distinct Model Context Protocol (MCP) servers: one 
 ## Structure
 
 - **[image-generation/](./image-generation/)**: MCP server providing tools for generating, editing, converting, and resizing images using Gemini, Replicate, and Hugging Face.
-- **[sound-generation/](./sound-generation/)**: MCP server providing tools for generating sound effects, ambient sounds, and loops using Replicate.
+- **[sound-generation/](./sound-generation/)**: MCP server providing tools for generating sound effects (SFX) using Replicate AudioGen.
  - **[mesh-generation/](./mesh-generation/)**: MCP server providing tools for generating 3D meshes for games using Shap-E on Replicate.
 
 ## Installation & Usage

@@ -1,7 +1,7 @@
 {
   "name": "mcp-sound-gen",
   "version": "1.1.0",
-  "description": "MCP server for sound generation using Replicate (AudioGen, AudioLDM, Stable Audio)",
+  "description": "MCP server for SFX sound generation using Replicate (AudioGen)",
   "type": "module",
   "main": "mcp-server.js",
   "bin": {
