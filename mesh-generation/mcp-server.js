@@ -74,23 +74,33 @@ async function generateMeshReplicate(prompt, params = {}) {
         "Content-Type": "application/json",
         "Prefer": "wait",
       },
+      timeout: 600000, // 10 minutes max for initial request
     }
   );
 
   let prediction = response.data;
 
-  while (prediction.status !== "succeeded" && prediction.status !== "failed") {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+  // Poll with timeout (max ~10 minutes: 120 attempts × 5 seconds)
+  let attempts = 0;
+  const maxAttempts = 120;
+
+  while (prediction.status !== "succeeded" && prediction.status !== "failed" && attempts < maxAttempts) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    attempts++;
     const statusUrl = prediction.urls.get;
     const statusResponse = await axios.get(statusUrl, {
       headers: { "Authorization": `Token ${REPLICATE_API_TOKEN}` },
     });
     prediction = statusResponse.data;
-    console.error(`[Mesh] Status: ${prediction.status}`);
+    console.error(`[Mesh] Status: ${prediction.status} (attempt ${attempts}/${maxAttempts})`);
   }
 
   if (prediction.status === "failed") {
     throw new Error("Mesh generation failed: " + prediction.error);
+  }
+
+  if (prediction.status !== "succeeded") {
+    throw new Error(`Mesh generation timeout after ${maxAttempts * 5} seconds. The model may be overloaded.`);
   }
 
   const output = prediction.output;
