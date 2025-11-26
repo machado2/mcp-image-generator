@@ -162,27 +162,9 @@ async function runTest() {
   const prompt = "a low-poly fantasy sword on a stand";
 
   try {
-    const { buffer, contentType, meshUrl } = await generateMeshReplicate(prompt, {});
+    const { buffer, contentType } = await generateMeshReplicate(prompt, {});
 
-    let extFromUrl = "";
-    if (meshUrl) {
-      const urlPath = meshUrl.split("?")[0];
-      const dotIndex = urlPath.lastIndexOf(".");
-      if (dotIndex !== -1) {
-        extFromUrl = urlPath.slice(dotIndex);
-      }
-    }
-
-    let ext = extFromUrl || ".bin";
-    if (!extFromUrl) {
-      if (contentType.includes("zip")) {
-        ext = ".zip";
-      } else if (contentType.includes("gltf")) {
-        ext = ".glb";
-      } else if (contentType.includes("obj")) {
-        ext = ".obj";
-      }
-    }
+    const ext = ".obj";
 
     const outputPath = path.join(OUTPUT_DIR, `test_mesh${ext}`);
     fs.writeFileSync(outputPath, buffer);

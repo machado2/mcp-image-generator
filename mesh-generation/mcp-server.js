@@ -140,27 +140,9 @@ async function generateMeshReplicate(prompt, params = {}) {
 
 async function generateMesh(prompt, outputPath, params = {}) {
   try {
-    const { buffer, contentType, meshUrl } = await generateMeshReplicate(prompt, params);
+    const { buffer, contentType } = await generateMeshReplicate(prompt, params);
 
-    let extFromUrl = "";
-    if (meshUrl) {
-      const urlPath = meshUrl.split("?")[0];
-      const dotIndex = urlPath.lastIndexOf(".");
-      if (dotIndex !== -1) {
-        extFromUrl = urlPath.slice(dotIndex);
-      }
-    }
-
-    let ext = extFromUrl || ".bin";
-    if (!extFromUrl) {
-      if (contentType.includes("zip")) {
-        ext = ".zip";
-      } else if (contentType.includes("gltf")) {
-        ext = ".glb";
-      } else if (contentType.includes("obj")) {
-        ext = ".obj";
-      }
-    }
+    const ext = ".obj";
 
     if (!outputPath) {
       outputPath = `output_mesh_${Date.now()}${ext}`;
@@ -179,6 +161,7 @@ async function generateMesh(prompt, outputPath, params = {}) {
       success: true,
       output_path: resolvedOutputPath,
       content_type: contentType,
+      format: "obj",
       message: "3D mesh generated successfully using Shap-E",
     };
   } catch (error) {
@@ -192,14 +175,14 @@ async function generateMesh(prompt, outputPath, params = {}) {
 const tools = [
   {
     name: "generate_3d_mesh",
-    description: "Generate a 3D mesh from a text description using Shap-E on Replicate.",
+    description: "Generate a 3D mesh in OBJ format from a text description using Shap-E on Replicate.",
     inputSchema: {
       type: "object",
       properties: {
         prompt: { type: "string", description: "Description of the 3D object to generate." },
         output_path: {
           type: "string",
-          description: "Path to save the mesh file (e.g., .zip, .glb, .obj).",
+          description: "Path to save the OBJ mesh file (e.g., my_mesh.obj). If omitted, a .obj file will be created automatically.",
         },
         guidance_scale: {
           type: "number",
