@@ -5,7 +5,8 @@
   "type": "module",
   "main": "mcp-server.js",
   "bin": {
-    "image-generation-mcp-server": "./mcp-server.js"
+    "image-generation-mcp-server": "./mcp-server.js",
+    "mcp-image-gen": "./mcp-server.js"
   },
   "files": [
     "mcp-server.js",

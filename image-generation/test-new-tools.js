@@ -30,10 +30,11 @@ async function createTestImage() {
     console.log("Created test image at", TEST_IMAGE_PATH);
 }
 
-function runMcpCommand(command) {
+function runMcpCommand(command, envOverride) {
     return new Promise((resolve, reject) => {
+        const defaultEnv = { IMAGE_GENERATION_PROVIDER: "gemini", GEMINI_API_KEY: "dummy" };
         const proc = spawn("node", [SERVER_PATH], {
-            env: { ...process.env, IMAGE_GENERATION_PROVIDER: "gemini", GEMINI_API_KEY: "dummy" } // Mock env to pass checks, though we won't use generation tools
+            env: { ...process.env, ...(envOverride || defaultEnv) }
         });
 
         let output = "";
@@ -175,6 +176,47 @@ async function runTests() {
                 console.log("PASSED");
             } else {
                 console.log("FAILED: format is " + meta.format);
+            }
+        }
+    } catch (e) {
+        console.error("Test failed:", e);
+    }
+
+    console.log("\n--- Testing generate_image_from_text (Replicate Nano Banana Pro) ---");
+    const genPath = path.join(OUTPUT_DIR, "agent_generated.png");
+    try {
+        const token = process.env.REPLICATE_API_TOKEN;
+        if (!token) {
+            console.log("SKIPPED: REPLICATE_API_TOKEN not set");
+        } else {
+            const response = await runMcpCommand({
+                jsonrpc: "2.0",
+                id: 4,
+                method: "tools/call",
+                params: {
+                    name: "generate_image_from_text",
+                    arguments: {
+                        prompt: "photorealistic mountain lake at sunrise, golden light, mist, ultra-detailed landscape, crisp reflections, cinematic composition",
+                        output_path: genPath
+                    }
+                }
+            }, {
+                IMAGE_GENERATION_MODE: "nano-banana-pro",
+                IMAGE_GENERATION_PROVIDER: "replicate",
+                REPLICATE_API_TOKEN: token
+            });
+
+            if (response.error) {
+                console.error("generate_image_from_text failed:", response.error);
+            } else {
+                const result = JSON.parse(response.result.content[0].text);
+                console.log("generate_image_from_text result:", result);
+                const meta = await sharp(genPath).metadata();
+                if (meta.width && meta.height) {
+                    console.log("PASSED");
+                } else {
+                    console.log("FAILED: image metadata not found");
+                }
             }
         }
     } catch (e) {
