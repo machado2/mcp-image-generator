@@ -60,104 +60,117 @@ async function generateImageGemini(prompt, options = {}) {
   if (!geminiClient) throw new Error("Gemini API Key not initialized");
 
   const config = {
-      responseModalities: ["IMAGE"], 
+    responseModalities: ["IMAGE"],
   };
-  
+
   if (options.aspectRatio || options.resolution) {
-      config.imageConfig = {};
-      if (options.aspectRatio) config.imageConfig.aspectRatio = options.aspectRatio;
-      if (options.resolution) config.imageConfig.imageSize = options.resolution;
+    config.imageConfig = {};
+    if (options.aspectRatio) config.imageConfig.aspectRatio = options.aspectRatio;
+    if (options.resolution) config.imageConfig.imageSize = options.resolution;
   }
-  
+
   if (options.numberOfImages) {
-       config.candidateCount = options.numberOfImages;
+    config.candidateCount = options.numberOfImages;
   }
 
   try {
     const response = await geminiClient.models.generateContent({
-        model: GEMINI_MODEL,
-        contents: { parts: [{ text: prompt }] },
-        config: config
+      model: GEMINI_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+      config: config,
     });
-    
+
     if (!response.candidates || response.candidates.length === 0) {
-        throw new Error("No candidates in Gemini API response");
+      throw new Error("No candidates in Gemini API response");
     }
-    
+
     const images = [];
     for (const candidate of response.candidates) {
-        const part = candidate.content.parts[0];
-        if (part.inlineData && part.inlineData.data) {
-            images.push(Buffer.from(part.inlineData.data, "base64"));
+      const parts = candidate.content?.parts || [];
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          images.push(Buffer.from(part.inlineData.data, "base64"));
         } else if (part.text) {
-             // Clean up potential markdown
-             const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
-             if (/^[A-Za-z0-9+/=]+$/.test(cleanText)) {
-                  images.push(Buffer.from(cleanText, "base64"));
-             }
+          const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
+          if (/^[A-Za-z0-9+/=]+$/.test(cleanText)) {
+            images.push(Buffer.from(cleanText, "base64"));
+          }
         }
+      }
     }
-    
+
     if (images.length === 0) {
-         throw new Error("No image data in Gemini API response");
+      throw new Error("No image data in Gemini API response");
     }
-    
-    return images; 
+
+    return images;
   } catch (error) {
-      console.error("Gemini Generation Error:", error);
-      throw error;
+    console.error("Gemini Generation Error:", error.response ? error.response.data : error.message);
+    throw error;
   }
 }
 
 async function editImageGemini(base64Image, mimeType, prompt, options = {}) {
-    if (!geminiClient) throw new Error("Gemini API Key not initialized");
+  if (!geminiClient) throw new Error("Gemini API Key not initialized");
 
-     const config = {
-        responseModalities: ["IMAGE"], 
-    };
-    
-    if (options.aspectRatio || options.resolution) {
-        config.imageConfig = {};
-        if (options.aspectRatio) config.imageConfig.aspectRatio = options.aspectRatio;
-        if (options.resolution) config.imageConfig.imageSize = options.resolution;
-    }
-    
-    if (options.numberOfImages) {
-        config.candidateCount = options.numberOfImages;
-   }
+  const config = {
+    responseModalities: ["IMAGE"],
+  };
 
-    try {
-        const response = await geminiClient.models.generateContent({
-            model: GEMINI_MODEL,
-            contents: [
-                { text: prompt },
-                { inlineData: { mimeType: mimeType, data: base64Image } }
-            ],
-            config: config
-        });
-        
-        const images = [];
-        for (const candidate of response.candidates) {
-            const part = candidate.content.parts[0];
-            if (part.inlineData && part.inlineData.data) {
-                images.push(Buffer.from(part.inlineData.data, "base64"));
-            } else if (part.text) {
-                 const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
-                 if (/^[A-Za-z0-9+/=]+$/.test(cleanText)) {
-                      images.push(Buffer.from(cleanText, "base64"));
-                 }
-            }
+  if (options.aspectRatio || options.resolution) {
+    config.imageConfig = {};
+    if (options.aspectRatio) config.imageConfig.aspectRatio = options.aspectRatio;
+    if (options.resolution) config.imageConfig.imageSize = options.resolution;
+  }
+
+  if (options.numberOfImages) {
+    config.candidateCount = options.numberOfImages;
+  }
+
+  try {
+    const response = await geminiClient.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: mimeType, data: base64Image } },
+          ],
+        },
+      ],
+      config: config,
+    });
+
+    const images = [];
+    for (const candidate of response.candidates) {
+      const parts = candidate.content?.parts || [];
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          images.push(Buffer.from(part.inlineData.data, "base64"));
+        } else if (part.text) {
+          const cleanText = part.text.replace(/```base64/g, "").replace(/```/g, "").trim();
+          if (/^[A-Za-z0-9+/=]+$/.test(cleanText)) {
+            images.push(Buffer.from(cleanText, "base64"));
+          }
         }
-        
-        if (images.length === 0) {
-             throw new Error("No image data in Gemini API response");
-        }
-        
-        return images;
-    } catch (error) {
-        console.error("Gemini Edit Error:", error);
-        throw error;
+      }
     }
+
+    if (images.length === 0) {
+      throw new Error("No image data in Gemini API response");
+    }
+
+    return images;
+  } catch (error) {
+    console.error("Gemini Edit Error:", error.response ? error.response.data : error.message);
+    throw error;
+  }
 }
 
 // --- Replicate Implementation ---
@@ -246,18 +259,40 @@ async function generateImageNanoBanana(prompt, options = {}) {
     );
   }
 
-  let imageUrl = null;
-  if (Array.isArray(prediction.output)) {
-    imageUrl = prediction.output[0];
-  } else if (prediction.output && typeof prediction.output === "object" && prediction.output.image) {
-    imageUrl = prediction.output.image;
+  let urls = [];
+  const out = prediction.output;
+  if (typeof out === "string") {
+    urls = [out];
+  } else if (Array.isArray(out)) {
+    for (const item of out) {
+      if (typeof item === "string") urls.push(item);
+      else if (item && typeof item === "object") {
+        if (item.image) urls.push(item.image);
+        else if (item.url) urls.push(item.url);
+        else if (item.image_url) urls.push(item.image_url);
+      }
+    }
+  } else if (out && typeof out === "object") {
+    if (out.image) urls.push(out.image);
+    else if (out.url) urls.push(out.url);
+    else if (out.image_url) urls.push(out.image_url);
+    else if (Array.isArray(out.images)) {
+      for (const i of out.images) {
+        if (typeof i === "string") urls.push(i);
+        else if (i && typeof i === "object") {
+          if (i.image) urls.push(i.image);
+          else if (i.url) urls.push(i.url);
+          else if (i.image_url) urls.push(i.image_url);
+        }
+      }
+    }
   }
 
-  if (!imageUrl) {
+  if (urls.length === 0 || !urls[0]) {
     throw new Error("nano-banana-pro generation did not return an image URL.");
   }
 
-  const imageResponse = await axios.get(imageUrl, { responseType: "arraybuffer" });
+  const imageResponse = await axios.get(urls[0], { responseType: "arraybuffer" });
   return Buffer.from(imageResponse.data);
 }
 
@@ -339,6 +374,81 @@ async function removeBackgroundReplicate(base64Image, mimeType) {
   return Buffer.from(imageResponse.data);
 }
 
+async function generateSvgRecraft(prompt, options = {}) {
+  if (!REPLICATE_API_TOKEN) {
+    throw new Error("Replicate API token is required for SVG generation.");
+  }
+
+  const url = "https://api.replicate.com/v1/models/recraft-ai/recraft-v3-svg/predictions";
+
+  const input = {
+    prompt: prompt,
+  };
+
+  if (options.size) {
+    input.size = options.size;
+  }
+  if (options.style) {
+    input.style = options.style;
+  }
+  if (options.aspect_ratio) {
+    input.aspect_ratio = options.aspect_ratio;
+  }
+
+  const response = await axios.post(
+    url,
+    { input },
+    {
+      headers: {
+        Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+        "Content-Type": "application/json",
+        Prefer: "wait",
+      },
+    }
+  );
+
+  let prediction = response.data;
+
+  while (
+    prediction.status &&
+    prediction.status !== "succeeded" &&
+    prediction.status !== "failed" &&
+    prediction.urls &&
+    prediction.urls.get
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const statusUrl = prediction.urls.get;
+    const statusResponse = await axios.get(statusUrl, {
+      headers: { Authorization: `Bearer ${REPLICATE_API_TOKEN}` },
+    });
+    prediction = statusResponse.data;
+  }
+
+  if (prediction.status === "failed") {
+    throw new Error("Recraft SVG generation failed: " + (prediction.error || "unknown error"));
+  }
+
+  let svgUrl = null;
+  if (typeof prediction.output === "string") {
+    svgUrl = prediction.output;
+  } else if (Array.isArray(prediction.output) && prediction.output.length > 0) {
+    svgUrl = prediction.output[0];
+  } else if (prediction.output && typeof prediction.output === "object") {
+    if (prediction.output.svg) {
+      svgUrl = prediction.output.svg;
+    } else if (prediction.output.image) {
+      svgUrl = prediction.output.image;
+    }
+  }
+
+  if (!svgUrl) {
+    throw new Error("Recraft SVG generation did not return an SVG URL.");
+  }
+
+  const svgResponse = await axios.get(svgUrl, { responseType: "arraybuffer" });
+  return Buffer.from(svgResponse.data);
+}
+
 // --- Hugging Face Implementation ---
 async function generateImageHuggingFace(prompt) {
     // Using Stable Diffusion XL Base 1.0
@@ -400,6 +510,21 @@ const tools = [
       properties: {
         prompt: { type: "string", description: "Detailed description of the image." },
         output_path: { type: "string", description: "Path where the generated image will be saved." },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "generate_svg_from_text",
+    description: "Generate an SVG vector image from a text description using the Recraft V3 SVG model on Replicate.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        prompt: { type: "string", description: "Detailed description of the SVG image." },
+        output_path: { type: "string", description: "Path where the generated SVG will be saved. Defaults to output.svg." },
+        size: { type: "string", description: "Size of the image in WIDTHxHEIGHT format, e.g., '1024x1024'." },
+        style: { type: "string", description: "Style parameter supported by Recraft (e.g., 'any')." },
+        aspect_ratio: { type: "string", description: "Aspect ratio parameter for Recraft, or 'Not set' to disable." },
       },
       required: ["prompt"],
     },
@@ -501,6 +626,30 @@ if (activeProvider === PROVIDERS.GEMINI) {
         type: "number", 
         description: "Number of images." 
     };
+}
+
+async function generateSvgFromTextRecraft(prompt, outputPath = "output.svg", options = {}) {
+  try {
+    const svgBuffer = await generateSvgRecraft(prompt, options);
+
+    const resolvedOutputPath = path.resolve(outputPath || "output.svg");
+    const dir = path.dirname(resolvedOutputPath);
+
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(resolvedOutputPath, svgBuffer);
+
+    return {
+      success: true,
+      output_path: resolvedOutputPath,
+      message: "SVG generated successfully using Recraft V3 SVG on Replicate.",
+    };
+  } catch (error) {
+    console.error("Error generating SVG:", error.response ? error.response.data : error.message);
+    throw error;
+  }
 }
 
 async function generateImageFromText(prompt, outputPath = "output.png", options = {}) {
@@ -788,6 +937,13 @@ async function processToolCall(toolName, toolInput) {
         aspectRatio: toolInput.aspectRatio,
         resolution: toolInput.resolution,
         numberOfImages: toolInput.numberOfImages
+    });
+  }
+  if (toolName === "generate_svg_from_text") {
+    return await generateSvgFromTextRecraft(toolInput.prompt, toolInput.output_path, {
+      size: toolInput.size,
+      style: toolInput.style,
+      aspect_ratio: toolInput.aspect_ratio,
     });
   }
   if (toolName === "edit_image") {
