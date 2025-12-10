@@ -16,12 +16,18 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN || process.env.REPLICATE_API_KEY;
 const HUGGING_FACE_TOKEN = process.env.HUGGING_FACE_TOKEN;
 const IMAGE_GENERATION_PROVIDER = process.env.IMAGE_GENERATION_PROVIDER || "gemini";
+const IMAGE_GENERATION_MODE = process.env.IMAGE_GENERATION_MODE || "default";
 
 // Provider Configuration
 const PROVIDERS = {
   GEMINI: "gemini",
   REPLICATE: "replicate",
   HUGGINGFACE: "huggingface",
+};
+
+const MODES = {
+  DEFAULT: "default",
+  NANO_BANANA_PRO: "nano-banana-pro",
 };
 
 // Helper to determine active provider
@@ -187,6 +193,70 @@ async function generateImageReplicate(prompt) {
   
   // Replicate returns a URL to the image
   const imageUrl = prediction.output[0];
+  const imageResponse = await axios.get(imageUrl, { responseType: "arraybuffer" });
+  return Buffer.from(imageResponse.data);
+}
+
+async function generateImageNanoBanana(prompt, options = {}) {
+  if (!REPLICATE_API_TOKEN) {
+    throw new Error("Replicate API token is required for nano-banana-pro mode.");
+  }
+
+  const url = "https://api.replicate.com/v1/models/google/nano-banana-pro/predictions";
+
+  const input = {
+    prompt: prompt,
+    aspect_ratio: options.aspectRatio || "1:1",
+    output_format: "png",
+  };
+
+  const response = await axios.post(
+    url,
+    { input },
+    {
+      headers: {
+        Authorization: `Bearer ${REPLICATE_API_TOKEN}`,
+        "Content-Type": "application/json",
+        Prefer: "wait",
+      },
+    }
+  );
+
+  let prediction = response.data;
+
+  // In case the API still returns an in-progress prediction even with Prefer: wait
+  while (
+    prediction.status &&
+    prediction.status !== "succeeded" &&
+    prediction.status !== "failed" &&
+    prediction.urls &&
+    prediction.urls.get
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const statusUrl = prediction.urls.get;
+    const statusResponse = await axios.get(statusUrl, {
+      headers: { Authorization: `Bearer ${REPLICATE_API_TOKEN}` },
+    });
+    prediction = statusResponse.data;
+  }
+
+  if (prediction.status === "failed") {
+    throw new Error(
+      "nano-banana-pro generation failed: " + (prediction.error || "unknown error")
+    );
+  }
+
+  let imageUrl = null;
+  if (Array.isArray(prediction.output)) {
+    imageUrl = prediction.output[0];
+  } else if (prediction.output && typeof prediction.output === "object" && prediction.output.image) {
+    imageUrl = prediction.output.image;
+  }
+
+  if (!imageUrl) {
+    throw new Error("nano-banana-pro generation did not return an image URL.");
+  }
+
   const imageResponse = await axios.get(imageUrl, { responseType: "arraybuffer" });
   return Buffer.from(imageResponse.data);
 }
@@ -437,7 +507,10 @@ async function generateImageFromText(prompt, outputPath = "output.png", options 
   try {
     let imageBuffers = [];
     
-    if (activeProvider === PROVIDERS.GEMINI) {
+    if (IMAGE_GENERATION_MODE === MODES.NANO_BANANA_PRO) {
+      const buf = await generateImageNanoBanana(prompt, options);
+      imageBuffers = [buf];
+    } else if (activeProvider === PROVIDERS.GEMINI) {
       imageBuffers = await generateImageGemini(prompt, options);
     } else if (activeProvider === PROVIDERS.REPLICATE) {
       const buf = await generateImageReplicate(prompt);
@@ -473,7 +546,9 @@ async function generateImageFromText(prompt, outputPath = "output.png", options 
     return {
       success: true,
       output_paths: results,
-      message: `Image(s) generated successfully using ${activeProvider}`,
+      message: `Image(s) generated successfully using ${
+        IMAGE_GENERATION_MODE === MODES.NANO_BANANA_PRO ? "nano-banana-pro" : activeProvider
+      }`,
     };
   } catch (error) {
     console.error("Error generating image:", error.response ? error.response.data : error.message);
